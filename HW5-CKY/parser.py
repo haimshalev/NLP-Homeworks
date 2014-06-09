@@ -84,62 +84,83 @@ def CreateCkyMatrix(sentenceLen, nonTerminalsLen):
 
     return ckyMatrix
 
-# TODO
+# Run the CKY algorithm
+# Returns:
+#   The cky probabilities three dimensional matrix
+#   a three dimensional trace back matrix
 def FillCkyMatrix(sentence, grammar, nonTerminalList):
     
+    # create two 3-dimensional matrix
     ckyMatrix = CreateCkyMatrix(len(sentence), len(nonTerminalList))
     ckyTraceBackMatrix = CreateCkyMatrix(len(sentence), len(nonTerminalList))
     
+    # run over all the columns from left to right
     for j in range(0, len(sentence)):
         
+        # initialize the diagonal 
         for rule in grammar[sentence[j]]:
             nonTerminalIdx = nonTerminalList.index(rule[0])
             ckyMatrix[j][j][nonTerminalIdx] = float(grammar[sentence[j]][0][1])
             ckyTraceBackMatrix[j][j][nonTerminalIdx] = sentence[j]
 
+        # run over all the lines from bottom up
         for i in range(j-1,-1,-1):
+            # split the words to two groups
             for k in range(i, j):
+                # run over all non terminals of the first group of words
                 for nonTerminalIdxB in range(len(nonTerminalList)):
                     if (ckyMatrix[i][k][nonTerminalIdxB] > 0):
+                        # run over all the non terminals of the second group of words
                         for nonTerminalIdxC in range(len(nonTerminalList)):
                             if (ckyMatrix[k+1][j][nonTerminalIdxC] > 0):
                                 # create the B C string
                                 currentNonTerminals = nonTerminalList[nonTerminalIdxB]+" "+nonTerminalList[nonTerminalIdxC]
+                                # find a rule that creating B C
                                 if currentNonTerminals in grammar:
+                                    # for each rule that creating the non terminals B C
                                     for rule in grammar[currentNonTerminals]:
+                                        # calculate the probability and add the trace back if the probability is higer then the previous one
                                         p = float(rule[1]) * ckyMatrix[i][k][nonTerminalIdxB] * ckyMatrix[k+1][j][nonTerminalIdxC]
-                                        # Todo - check for disambiguity
                                         if (ckyMatrix[i][j][nonTerminalList.index(rule[0])] < p):
                                             ckyMatrix[i][j][nonTerminalList.index(rule[0])] = p
                                             ckyTraceBackMatrix[i][j][nonTerminalList.index(rule[0])] = str.format("{0} {1} {2} X {3} {4} {5}",i,k,nonTerminalList[nonTerminalIdxB],k+1,j,nonTerminalList[nonTerminalIdxC])
 
     return ckyMatrix, ckyTraceBackMatrix
 
+#  Returns a string representation of a dervaition branch
 def CreateDerviationTree(ckyTraceBackMatrix, nonTerminalList, i ,j ,k):
     
-    derivationTree = ""
+    derivationTree = "["
 
-    derivationTree += "["
+    # add the non terminal sign
     derivationTree += nonTerminalList[k] + " "
     trace = (str)(ckyTraceBackMatrix[i][j][k]).split()
     if (len(trace) > 1):
+        # create the derviation tree of the left side
         derivationTree += CreateDerviationTree(ckyTraceBackMatrix, nonTerminalList, int(trace[0]), int(trace[1]), nonTerminalList.index(trace[2]))
+        # create the derviation tree of the right side
         derivationTree += CreateDerviationTree(ckyTraceBackMatrix, nonTerminalList, int(trace[4]), int(trace[5]), nonTerminalList.index(trace[6]))
     else: derivationTree += trace[0]
+    
     derivationTree += "]"
     return derivationTree
 
+# Creates the output string from the trace back matrix 
+def BuildDerivationTree(ckyTraceBackMatrix, nonTerminalList):
 
-# TODO
-def BuildDerivationTree(ckyMatrix, ckyTraceBackMatrix, nonTerminalList):
-
+    # initialize the start cell
     i = 0
     j = len(ckyTraceBackMatrix[0]) - 1
     k = nonTerminalList.index("S")
+    
+    if(ckyMatrix[i][j][k] != 0):
+        # add a prefix of the probability of the chosen derviation tree
+        probability = str.format('%0.2E' % ckyMatrix[i][j][k]) + " "
 
-    derivationTree = str.format('%0.2E' % ckyMatrix[i][j][k])
-    derivationTree += " " + CreateDerviationTree(ckyTraceBackMatrix, nonTerminalList, i, j, k)
-    return derivationTree
+        # run recursive method which creates the output string
+        return probability + CreateDerviationTree(ckyTraceBackMatrix, nonTerminalList, i, j, k)
+
+    return "There is no derviation tree for this sentence"
 
 # write the derivation tree into file 
 def WriteTreeIntoFile(sentence,derivationTree,file):
@@ -156,7 +177,6 @@ def WriteTreeIntoFile(sentence,derivationTree,file):
     
     return True
 
-
 print("\n---------------------- HW5 - CKY algorithm ----------------------\n")
 TotalStartTime = time.clock()
 
@@ -168,7 +188,7 @@ outFile = codecs.open(outputFilePath, "w", "utf-8")                         # op
 for sentence in testData:                # build derivation tree for each sentence using CKY algorithm
     if len(sentence) > 0:
         ckyMatrix, ckyTraceBackMatrix = FillCkyMatrix(sentence, grammar, nonTerminalList)
-        derivationTree = BuildDerivationTree(ckyMatrix, ckyTraceBackMatrix, nonTerminalList)
+        derivationTree = BuildDerivationTree(ckyTraceBackMatrix, nonTerminalList)
         WriteTreeIntoFile(sentence,derivationTree,outFile)
 
 print("\nAll procedures have been completed in ",time.clock() - TotalStartTime," sec")
